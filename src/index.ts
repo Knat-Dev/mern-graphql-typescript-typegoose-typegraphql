@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import 'dotenv-safe/config';
 import mongoose from 'mongoose';
 import express from 'express';
 import { ApolloServer } from 'apollo-server-express';
@@ -19,15 +20,12 @@ const main = async () => {
   // await sendEmail('bob@bob.com', 'hello there', 'hehey');
   // Mongoose Connection
   console.log('Connecting to MongoDB Atlas...');
-  await mongoose.connect(
-    `mongodb://localhost:27017/?readPreference=primary&appname=MongoDB%20Compass%20Community&ssl=false?retryWrites=true&w=majority`,
-    {
-      useNewUrlParser: true,
-      useFindAndModify: false,
-      useUnifiedTopology: true,
-      useCreateIndex: true,
-    }
-  );
+  await mongoose.connect(process.env.DATABASE_URL, {
+    useNewUrlParser: true,
+    useFindAndModify: false,
+    useUnifiedTopology: true,
+    useCreateIndex: true,
+  });
   console.log('Successfully connected to MongoDB Atlas!');
   //   PostModel.insertMany(mockData);
 
@@ -35,9 +33,10 @@ const main = async () => {
   const app = express();
   // Redis
   const RedisStore = connectRedis(session);
-  const redis = new Redis();
+  const redis = new Redis(process.env.REDIS_URL);
   // Express Middleware
-  app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+  app.set('trust proxy', 1);
+  app.use(cors({ origin: process.env.CORS_ORIGIN, credentials: true }));
   app.use(
     session({
       name: COOKIE_NAME,
@@ -49,9 +48,10 @@ const main = async () => {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 10,
         httpOnly: true,
         sameSite: 'lax',
-        secure: __prod__, // only secure on production
+        secure: __prod__, // only secure on production,
+        domain: __prod__ ? '.knat.dev' : 'localhost',
       },
-      secret: 'hfghfhfghfgh',
+      secret: process.env.SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
     })
@@ -80,7 +80,9 @@ const main = async () => {
   // Express Middleware
 
   // Express Server Listen
-  app.listen(8080, () => console.log('Server is running on port 8080'));
+  app.listen(process.env.PORT, () =>
+    console.log(`Server is running on port ${process.env.PORT}`)
+  );
 };
 
 main();

@@ -75,7 +75,7 @@ export class PostResolver {
 
   @FieldResolver(() => String)
   textSnippet(@Root() root: DocumentType<Post>) {
-    return root.text.slice(0, 50);
+    return root.text.slice(0, 75);
   }
 
   @Query(() => Post, { nullable: true })
@@ -215,14 +215,20 @@ export class PostResolver {
         ).session(session);
       } else {
         await session.abortTransaction();
+        session.endSession();
         return false;
       }
 
       await session.commitTransaction();
+      session.endSession();
       return true;
     } catch (e) {
       console.log(e);
-      if (session.inTransaction()) await session.abortTransaction();
+      session.endSession();
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+        session.endSession();
+      }
       return false;
     }
   }
