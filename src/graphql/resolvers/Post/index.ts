@@ -14,7 +14,14 @@ import {
   Root,
   UseMiddleware,
 } from 'type-graphql';
-import { Post, PostModel, User, UserModel } from '../../../models';
+import {
+  Comment,
+  CommentModel,
+  Post,
+  PostModel,
+  User,
+  UserModel,
+} from '../../../models';
 import { Context } from '../../../types';
 import { isAuth } from '../../../utils/isAuth';
 import { PaginatedPostsResult } from './PaginatedPostsResult';
@@ -22,10 +29,49 @@ import { PaginationInput } from './PaginationInput';
 import { PostInput } from './PostInput';
 import mongoose from 'mongoose';
 import { VoteModel } from '../../../models/Vote';
-import { PaginatedPosts, FieldError, PostResponse } from '../../types';
+import {
+  PaginatedPosts,
+  FieldError,
+  PostResponse,
+  PaginatedComments,
+} from '../../types';
 
 @Resolver((of) => Post)
 export class PostResolver {
+  @FieldResolver(() => PaginatedComments)
+  async comments(
+    @Root() post: DocumentType<Post>,
+    @Arg('input') input: PaginationInput
+  ): Promise<PaginatedComments> {
+    const { limit, cursor } = input;
+    let realLimit = Math.min(50, limit);
+    realLimit = Math.max(1, realLimit);
+    realLimit++;
+    const query: MongooseFilterQuery<Pick<
+      DocumentType<Comment>,
+      'createdAt'
+    >> = cursor
+      ? { createdAt: { $lt: new Date(cursor) }, _id: { $in: post.commentIds } }
+      : { _id: { $in: post.commentIds } };
+    const comments = await CommentModel.find(query)
+      .sort({ createdAt: -1 })
+      .limit(realLimit);
+
+    const count = comments.length;
+
+    return {
+      comments: comments.splice(0, realLimit - 1),
+      hasMore: count === realLimit,
+    };
+
+    //////
+  }
+
+  @FieldResolver(() => Number)
+  commentCount(@Root() post: DocumentType<Post>): number {
+    return post.commentIds!.length;
+  }
+
   @Query(() => PaginatedPosts)
   async posts(@Arg('input') input: PaginationInput): Promise<PaginatedPosts> {
     const { cursor, limit } = input;
@@ -34,7 +80,7 @@ export class PostResolver {
     realLimit++;
     const query: MongooseFilterQuery<Pick<
       DocumentType<Post>,
-      'updatedAt'
+      'createdAt'
     >> = cursor ? { createdAt: { $lt: new Date(cursor) } } : {};
     const posts = await PostModel.find(query)
       .sort({ createdAt: -1 })

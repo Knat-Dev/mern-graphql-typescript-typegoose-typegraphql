@@ -15,6 +15,7 @@ import { PostModel } from './models';
 import mockData from './utils/mockData';
 import { createUserLoader } from './utils/createUserLoader';
 import { createVoteStatusLoader } from './utils/createVoteStatusLoader';
+import { CommentResolver } from './graphql/resolvers/Comment';
 
 const main = async () => {
   // await sendEmail('bob@bob.com', 'hello there', 'hehey');
@@ -60,7 +61,7 @@ const main = async () => {
   // Apollo Server
   const apolloServer: ApolloServer = new ApolloServer({
     schema: await buildSchema({
-      resolvers: [PostResolver, HelloResolver, UserResolver],
+      resolvers: [PostResolver, HelloResolver, UserResolver, CommentResolver],
       validate: false,
     }),
     context: ({ req, res }) => ({

@@ -6,13 +6,12 @@ import {
 } from '@typegoose/typegoose';
 import { prop } from '@typegoose/typegoose/lib/prop';
 import { Field, Float, ID, Int, ObjectType } from 'type-graphql';
-import { PaginatedComments } from '../../graphql/types';
-import { Comment } from '../Comment';
+import { Post } from '../Post';
 import { User } from '../User';
 
 @ObjectType()
 @modelOptions({ options: { allowMixed: Severity.ALLOW } })
-export class Post {
+export class Comment {
   @Field(() => ID)
   id: string;
 
@@ -25,18 +24,7 @@ export class Post {
 
   @Field(() => String)
   @prop({ type: String })
-  public title!: string;
-
-  @Field(() => String)
-  @prop({ type: String })
   public text!: string;
-
-  @Field(() => Number)
-  @prop({ type: Number, default: 0 })
-  public points?: number;
-
-  @Field(() => Int, { nullable: true })
-  voteStatus?: number | null;
 
   @Field(() => User)
   creator?: User;
@@ -44,15 +32,13 @@ export class Post {
   @prop()
   creatorId: string;
 
-  @Field(() => PaginatedComments)
-  comments?: PaginatedComments;
+  @Field(() => Post)
+  post?: Post;
 
-  @Field(() => Number)
-  commentCount?: number;
-
-  @prop({ default: [] })
-  commentIds?: Ref<Comment>[];
+  @prop()
+  postId: string;
 }
-export const PostModel = getModelForClass(Post, {
+
+export const CommentModel = getModelForClass(Comment, {
   schemaOptions: { timestamps: true },
 });

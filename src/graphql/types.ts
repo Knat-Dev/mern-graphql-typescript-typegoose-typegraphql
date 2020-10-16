@@ -1,5 +1,5 @@
 import { InputType, Field, ObjectType } from 'type-graphql';
-import { Post, User } from '../models';
+import { Comment, Post, User } from '../models';
 
 @InputType()
 export class LoginInput {
@@ -56,10 +56,28 @@ export class PaginatedPosts {
 }
 
 @ObjectType()
+export class PaginatedComments {
+  @Field(() => [Comment])
+  comments: Comment[];
+
+  @Field()
+  hasMore: boolean;
+}
+
+@ObjectType()
 export class PostResponse {
   @Field(() => [FieldError], { nullable: true })
   errors?: FieldError[];
 
   @Field(() => Post, { nullable: true })
   post?: Post;
+}
+
+@ObjectType()
+export class CommentResponse {
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+
+  @Field(() => Comment, { nullable: true })
+  comment?: Comment;
 }
