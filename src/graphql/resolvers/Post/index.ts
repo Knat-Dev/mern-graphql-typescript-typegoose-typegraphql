@@ -218,8 +218,15 @@ export class PostResolver {
 
     if (post.creatorId !== req.session.userId)
       throw new Error('not authorized');
+    const arr = post.commentIds?.map((item: any) => {
+      return item[0];
+    });
     //delete votes
-    await VoteModel.deleteMany({ postId: id });
+    await VoteModel.deleteMany({
+      $or: [{ postId: id }, { commentId: { $in: arr } }],
+    });
+    //delete comments
+    await CommentModel.deleteMany({ postId: id });
 
     //delete post
     const deleted = await PostModel.findOneAndDelete({

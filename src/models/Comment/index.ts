@@ -26,6 +26,13 @@ export class Comment {
   @prop({ type: String })
   public text!: string;
 
+  @Field(() => Number)
+  @prop({ type: Number, default: 0 })
+  public points?: number;
+
+  @Field(() => Int, { nullable: true })
+  voteStatus?: number | null;
+
   @Field(() => User)
   creator?: User;
 
