@@ -22,15 +22,7 @@ import { PaginationInput } from './PaginationInput';
 import { PostInput } from './PostInput';
 import mongoose from 'mongoose';
 import { VoteModel } from '../../../models/Vote';
-
-@ObjectType()
-class PaginatedPosts {
-  @Field(() => [Post])
-  posts: Post[];
-
-  @Field()
-  hasMore: boolean;
-}
+import { PaginatedPosts, FieldError, PostResponse } from '../../types';
 
 @Resolver((of) => Post)
 export class PostResolver {
@@ -82,18 +74,36 @@ export class PostResolver {
   async post(@Arg('id') id: string): Promise<DocumentType<Post> | null> {
     if (!mongoose.Types.ObjectId.isValid(id))
       throw new Error("Id doesn't match any post document");
-    console.log('fetching post page');
 
     return await PostModel.findById(id);
   }
 
-  @Mutation(() => Post, { nullable: true })
+  @Mutation(() => PostResponse, { nullable: true })
   @UseMiddleware(isAuth)
   async createPost(
     @Arg('input') input: PostInput,
     @Ctx() { req }: Context
-  ): Promise<DocumentType<Post>> {
+  ): Promise<PostResponse> {
     const { text, title } = input;
+    // Field validations go here
+    const errors: FieldError[] = [];
+    if (title.length < 2) {
+      errors.push({
+        field: 'title',
+        message: 'Title length must be greater than or equal to 2',
+      });
+    }
+    if (text.length < 6) {
+      errors.push({
+        field: 'text',
+        message: 'Text length must be greater than or equal to 6',
+      });
+    }
+
+    if (errors.length > 0)
+      return {
+        errors,
+      };
 
     const post = await PostModel.create({
       title,
@@ -103,29 +113,52 @@ export class PostResolver {
     await UserModel.findByIdAndUpdate(req.session.userId, {
       $push: { posts: post.id },
     });
-    return post;
+    return { post };
   }
 
-  @Mutation(() => Post)
+  @Mutation(() => PostResponse)
   @UseMiddleware(isAuth)
   async updatePost(
     @Arg('id') id: string,
     @Arg('title') title: string,
     @Arg('text') text: string,
     @Ctx() { req }: Context
-  ): Promise<DocumentType<Post>> {
-    const updated = await PostModel.findOneAndUpdate(
-      { _id: id, creatorId: req.session.userId },
-      {
-        $set: { title, text },
-      },
-      { new: true }
-    );
+  ): Promise<PostResponse> {
+    // Field validations go here
+    const errors: FieldError[] = [];
+    if (title.length < 2) {
+      errors.push({
+        field: 'title',
+        message: 'Title length must be greater than or equal to 2',
+      });
+    }
+    if (text.length < 6) {
+      errors.push({
+        field: 'text',
+        message: 'Text length must be greater than or equal to 6',
+      });
+    }
 
-    if (!updated)
+    const post = await PostModel.findOne({
+      _id: id,
+      creatorId: req.session.userId,
+    });
+    if (!post)
       throw new Error("Post could not be found or you don't own this post! ");
 
-    return updated;
+    if (errors.length > 0)
+      return {
+        errors,
+      };
+
+    post.title = title;
+    post.text = text;
+
+    const updated = await post.save();
+
+    if (!updated) throw new Error('Post could not be updated!');
+
+    return { post: updated };
   }
 
   @Mutation(() => Boolean)

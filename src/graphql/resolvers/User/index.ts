@@ -1,16 +1,16 @@
 import { DocumentType } from '@typegoose/typegoose';
 import {
-    Arg,
-    Args,
-    Ctx,
-    Field,
-    FieldResolver,
-    InputType,
-    Mutation,
-    ObjectType,
-    Query,
-    Resolver,
-    Root,
+  Arg,
+  Args,
+  Ctx,
+  Field,
+  FieldResolver,
+  InputType,
+  Mutation,
+  ObjectType,
+  Query,
+  Resolver,
+  Root,
 } from 'type-graphql';
 import { Post, PostModel, User, UserModel } from '../../../models';
 import { hash, verify } from 'argon2';
@@ -20,315 +20,270 @@ import { COOKIE_NAME, FORGET_PASSWORD_PREFIX } from '../../../constants';
 import { sendEmail } from '../../../utils/sendEmail';
 import crypto from 'crypto';
 import { generateResetPasswordToken } from '../../../utils/generateResetPasswordToken';
-
-@InputType()
-class LoginInput {
-    @Field()
-    usernameOrEmail: string;
-    @Field()
-    password: string;
-}
-
-@InputType()
-class RegisterInput {
-    @Field()
-    username: string;
-    @Field()
-    password: string;
-    @Field()
-    email: string;
-}
-
-@ObjectType()
-class UserResponse {
-    @Field(() => [FieldError], { nullable: true })
-    errors?: FieldError[];
-
-    @Field(() => User, { nullable: true })
-    user?: User;
-}
-
-@ObjectType()
-class FieldError {
-    @Field()
-    field: string;
-
-    @Field()
-    message: string;
-}
-
-@InputType()
-class ChangePasswordInput {
-    @Field()
-    token: string;
-
-    @Field()
-    newPassword: string;
-}
+import {
+  UserResponse,
+  RegisterInput,
+  FieldError,
+  LoginInput,
+  ChangePasswordInput,
+} from '../../types';
 
 @Resolver(User)
 export class UserResolver {
-    @Mutation(() => UserResponse)
-    async register(
-        @Arg('input') input: RegisterInput,
-        @Ctx() { req }: Context
-    ): Promise<UserResponse> {
-        const { username, password, email } = input;
-        const errors: FieldError[] = [];
-        // Field validations go here
-        if (username.length < 2) {
-            errors.push({
-                field: 'username',
-                message:
-                    'Username must be greater than or equal to 2 characters',
-            });
-        } else if (username.includes('@')) {
-            errors.push({
-                field: 'username',
-                message: "Username can not include '@' sign",
-            });
-        }
-        if (email.length < 6) {
-            errors.push({
-                field: 'email',
-                message: 'Email must be greater than or equal to 6 characters',
-            });
-        } else if (!email.includes('@')) {
-            errors.push({
-                field: 'email',
-                message: "Email must include '@' sign",
-            });
-        }
-        if (password.length < 6) {
-            errors.push({
-                field: 'password',
-                message:
-                    'Password must be greater than or equal to 6 characters',
-            });
-        }
-
-        if (errors.length > 0)
-            return {
-                errors,
-            };
-
-        // fields valid
-        let user;
-
-        try {
-            user = await UserModel.create({
-                username: input.username,
-                password: await hash(input.password),
-                email: input.email,
-            });
-            req.session.userId = user.id; // create user session
-        } catch (e) {
-            console.log(e);
-            if (e.code === 11000)
-                if (e.keyValue['username'])
-                    return {
-                        errors: [
-                            {
-                                field: 'username',
-                                message:
-                                    'This username is already taken by another user',
-                            },
-                        ],
-                    };
-                else
-                    return {
-                        errors: [
-                            {
-                                field: 'email',
-                                message:
-                                    'This email address is already taken by another user',
-                            },
-                        ],
-                    };
-        }
-
-        return { user };
+  @Mutation(() => UserResponse)
+  async register(
+    @Arg('input') input: RegisterInput,
+    @Ctx() { req }: Context
+  ): Promise<UserResponse> {
+    const { username, password, email } = input;
+    const errors: FieldError[] = [];
+    // Field validations go here
+    if (username.length < 2) {
+      errors.push({
+        field: 'username',
+        message: 'Username length must be greater than or equal to 2',
+      });
+    } else if (username.includes('@')) {
+      errors.push({
+        field: 'username',
+        message: "Username can not include '@' sign",
+      });
+    }
+    if (email.length < 6) {
+      errors.push({
+        field: 'email',
+        message: 'Email length must be greater than or equal to 6',
+      });
+    } else if (!email.includes('@')) {
+      errors.push({
+        field: 'email',
+        message: "Email must include '@' sign",
+      });
+    }
+    if (password.length < 6) {
+      errors.push({
+        field: 'password',
+        message: 'Password length must be greater than or equal to 6',
+      });
     }
 
-    @Mutation(() => UserResponse)
-    async login(
-        @Arg('input') input: LoginInput,
-        @Ctx() { req }: Context
-    ): Promise<UserResponse> {
-        const { usernameOrEmail, password } = input;
-        // Field validations go here
-        const errors: FieldError[] = [];
-        if (usernameOrEmail.length < 2) {
-            errors.push({
-                field: 'usernameOrEmail',
-                message:
-                    'Username or Email must be greater than or equal to 2 characters',
-            });
-        }
-        if (password.length < 6) {
-            errors.push({
-                field: 'password',
-                message:
-                    'Password must be greater than or equal to 6 characters',
-            });
-        }
+    if (errors.length > 0)
+      return {
+        errors,
+      };
 
-        if (errors.length > 0)
-            return {
-                errors,
-            };
+    // fields valid
+    let user;
 
-        // if fields are valid, check if there exists a user with the same username as in the input
-        const user = await UserModel.findOne({
-            $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
-        });
+    try {
+      user = await UserModel.create({
+        username: input.username,
+        password: await hash(input.password),
+        email: input.email,
+      });
+      req.session.userId = user.id; // create user session
+    } catch (e) {
+      console.log(e);
+      if (e.code === 11000)
+        if (e.keyValue['username'])
+          return {
+            errors: [
+              {
+                field: 'username',
+                message: 'This username is already taken by another user',
+              },
+            ],
+          };
+        else
+          return {
+            errors: [
+              {
+                field: 'email',
+                message: 'This email address is already taken by another user',
+              },
+            ],
+          };
+    }
 
-        if (!user) {
-            if (!usernameOrEmail.includes('@'))
-                return {
-                    errors: [
-                        {
-                            field: 'usernameOrEmail',
-                            message: 'Username does not exist',
-                        },
-                    ],
-                };
-            else
-                return {
-                    errors: [
-                        {
-                            field: 'usernameOrEmail',
-                            message: 'Email does not exist',
-                        },
-                    ],
-                };
-        }
+    return { user };
+  }
 
-        const valid = await verify(user.password, input.password);
+  @Mutation(() => UserResponse)
+  async login(
+    @Arg('input') input: LoginInput,
+    @Ctx() { req }: Context
+  ): Promise<UserResponse> {
+    const { usernameOrEmail, password } = input;
+    // Field validations go here
+    const errors: FieldError[] = [];
+    if (usernameOrEmail.length < 2) {
+      errors.push({
+        field: 'usernameOrEmail',
+        message: 'Username or Email length must be greater than or equal to 2',
+      });
+    }
+    if (password.length < 6) {
+      errors.push({
+        field: 'password',
+        message: 'Password length must be greater than or equal to 6',
+      });
+    }
 
-        if (!valid)
-            return {
-                errors: [
-                    {
-                        field: 'password',
-                        message: 'Incorrect password, please try again',
-                    },
-                ],
-            };
+    if (errors.length > 0)
+      return {
+        errors,
+      };
 
-        req.session.userId = user.id; // create user session
+    // if fields are valid, check if there exists a user with the same username as in the input
+    const user = await UserModel.findOne({
+      $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
+    });
 
+    if (!user) {
+      if (!usernameOrEmail.includes('@'))
         return {
-            user,
+          errors: [
+            {
+              field: 'usernameOrEmail',
+              message: 'Username does not exist',
+            },
+          ],
+        };
+      else
+        return {
+          errors: [
+            {
+              field: 'usernameOrEmail',
+              message: 'Email does not exist',
+            },
+          ],
         };
     }
 
-    @Mutation(() => Boolean)
-    logout(@Ctx() { req, res: response }: Context): Promise<boolean> {
-        return new Promise((res) =>
-            req.session.destroy((e) => {
-                response.clearCookie(COOKIE_NAME);
+    const valid = await verify(user.password, input.password);
 
-                if (e) {
-                    console.log(e);
-                    res(false);
-                    return;
-                } else {
-                    res(true);
-                }
-            })
-        );
-    }
+    if (!valid)
+      return {
+        errors: [
+          {
+            field: 'password',
+            message: 'Incorrect password, please try again',
+          },
+        ],
+      };
 
-    @Query(() => User, { nullable: true })
-    async me(@Ctx() { req }: Context): Promise<DocumentType<User> | null> {
-        const { userId } = req.session;
+    req.session.userId = user.id; // create user session
 
-        if (!userId) return null;
+    return {
+      user,
+    };
+  }
 
-        const user = await UserModel.findById(userId);
+  @Mutation(() => Boolean)
+  logout(@Ctx() { req, res: response }: Context): Promise<boolean> {
+    return new Promise((res) =>
+      req.session.destroy((e) => {
+        response.clearCookie(COOKIE_NAME);
 
-        return user;
-    }
+        if (e) {
+          console.log(e);
+          res(false);
+          return;
+        } else {
+          res(true);
+        }
+      })
+    );
+  }
 
-    @Mutation(() => Boolean)
-    async forgotPassword(
-        @Ctx() { redis }: Context,
-        @Arg('email') email: string
-    ): Promise<boolean> {
-        const user = await UserModel.findOne({ email });
+  @Query(() => User, { nullable: true })
+  async me(@Ctx() { req }: Context): Promise<DocumentType<User> | null> {
+    const { userId } = req.session;
 
-        if (!user) return true;
+    if (!userId) return null;
 
-        const resetPasswordToken = generateResetPasswordToken();
+    const user = await UserModel.findById(userId);
 
-        await redis.set(
-            FORGET_PASSWORD_PREFIX + resetPasswordToken,
-            user.id,
-            'ex',
-            1000 * 60 * 60 * 24 * 3
-        );
+    return user;
+  }
 
-        const html = `<a href="http://localhost:3000/change-password/${resetPasswordToken}">reset password</a>`;
-        sendEmail(email, html, 'Change Password');
+  @Mutation(() => Boolean)
+  async forgotPassword(
+    @Ctx() { redis }: Context,
+    @Arg('email') email: string
+  ): Promise<boolean> {
+    const user = await UserModel.findOne({ email });
 
-        return true;
-    }
+    if (!user) return true;
 
-    @Mutation(() => UserResponse)
-    async changePassword(
-        @Arg('input') input: ChangePasswordInput,
-        @Ctx() { redis, req }: Context
-    ): Promise<UserResponse> {
-        const { newPassword, token } = input;
-        if (newPassword.length < 6)
-            return {
-                errors: [
-                    {
-                        field: 'newPassword',
-                        message:
-                            'Password must be greater than or equal to 6 characters',
-                    },
-                ],
-            };
+    const resetPasswordToken = generateResetPasswordToken();
 
-        const userId = await redis.get(FORGET_PASSWORD_PREFIX + token);
+    await redis.set(
+      FORGET_PASSWORD_PREFIX + resetPasswordToken,
+      user.id,
+      'ex',
+      1000 * 60 * 60 * 24 * 3
+    );
 
-        if (!userId)
-            return {
-                errors: [{ field: 'token', message: 'Token invalid' }],
-            };
+    const html = `<a href="http://localhost:3000/change-password/${resetPasswordToken}">reset password</a>`;
+    sendEmail(email, html, 'Change Password');
 
-        const user = await UserModel.findByIdAndUpdate(
-            userId,
-            {
-                $set: { password: await hash(newPassword) },
-            },
-            { new: true }
-        );
+    return true;
+  }
 
-        if (!user)
-            return {
-                errors: [{ field: 'token', message: 'Token Expired' }],
-            };
-        redis.del(FORGET_PASSWORD_PREFIX + token);
-        req.session.userId = userId;
-        return { user };
-    }
+  @Mutation(() => UserResponse)
+  async changePassword(
+    @Arg('input') input: ChangePasswordInput,
+    @Ctx() { redis, req }: Context
+  ): Promise<UserResponse> {
+    const { newPassword, token } = input;
+    if (newPassword.length < 6)
+      return {
+        errors: [
+          {
+            field: 'newPassword',
+            message: 'Password must be greater than or equal to 6 characters',
+          },
+        ],
+      };
 
-    @FieldResolver()
-    async posts(
-        @Root() user: DocumentType<User>
-    ): Promise<DocumentType<Post>[] | null> {
-        return await PostModel.find({ creatorId: user.id });
-    }
+    const userId = await redis.get(FORGET_PASSWORD_PREFIX + token);
 
-    @FieldResolver({ nullable: true })
-    async email(
-        @Root() user: DocumentType<User>,
-        @Ctx() { req }: Context
-    ): Promise<string | null> {
-        if (req.session.userId === user.id) return user.email;
-        return null;
-    }
+    if (!userId)
+      return {
+        errors: [{ field: 'token', message: 'Token invalid' }],
+      };
+
+    const user = await UserModel.findByIdAndUpdate(
+      userId,
+      {
+        $set: { password: await hash(newPassword) },
+      },
+      { new: true }
+    );
+
+    if (!user)
+      return {
+        errors: [{ field: 'token', message: 'Token Expired' }],
+      };
+    redis.del(FORGET_PASSWORD_PREFIX + token);
+    req.session.userId = userId;
+    return { user };
+  }
+
+  @FieldResolver()
+  async posts(
+    @Root() user: DocumentType<User>
+  ): Promise<DocumentType<Post>[] | null> {
+    return await PostModel.find({ creatorId: user.id });
+  }
+
+  @FieldResolver({ nullable: true })
+  async email(
+    @Root() user: DocumentType<User>,
+    @Ctx() { req }: Context
+  ): Promise<string | null> {
+    if (req.session.userId === user.id) return user.email;
+    return null;
+  }
 }
