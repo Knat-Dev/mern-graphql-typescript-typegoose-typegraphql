@@ -1,8 +1,7 @@
 ## The Backend of the Reddit clone application
 
-# Uses the following technologies:
-
-Typescript
+# The following technologies were used:
+* Typescript
 * Node.JS
 * MongoDB - using Mongoose and Typegoose ORM
 * Apollo Server
