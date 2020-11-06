@@ -1,5 +1,7 @@
 # The Backend of the Reddit clone application
 
+[Frontend](https://github.com/Knat-Dev/mern-frontend-typescript)
+
 ### The following technologies were used:
 * Typescript
 * Node.JS
