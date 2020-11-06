@@ -14,3 +14,10 @@ For the fullstack live demo click [here](https://reddit.knat.dev)
 * Apollo Express (exposes a graphql route)
 * GraphQL
 * Json Web Tokens for authentication system
+
+
+### Dev-ops
+## API
+* DigitalOcean VPS with MongoDB server installed
+* Docker + Docker Hub
+
