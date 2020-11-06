@@ -16,8 +16,8 @@ For the fullstack live demo click [here](https://reddit.knat.dev)
 * Json Web Tokens for authentication system
 
 
-### Dev-ops
-## API
+## Dev-ops
+### API
 * DigitalOcean VPS with MongoDB server installed
 * Docker + Docker Hub
 
