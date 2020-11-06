@@ -1,8 +1,9 @@
 # The Backend of the Reddit clone application
 
-[Frontend](https://github.com/Knat-Dev/mern-frontend-typescript)
+For the frontend github page click [here](https://github.com/Knat-Dev/mern-frontend-typescript)
 </br>
 For the fullstack live demo click [here](https://reddit.knat.dev)
+
 ---
 
 ### The following technologies were used:
