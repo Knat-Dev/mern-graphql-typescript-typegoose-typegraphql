@@ -13,6 +13,7 @@ import {
   Root,
 } from 'type-graphql';
 import { Post, PostModel, User, UserModel } from '../../../models';
+import { verify as verifyJwt } from 'jsonwebtoken';
 import { hash, verify } from 'argon2';
 import { Context } from '../../../types';
 import { Response } from 'express';
@@ -27,16 +28,25 @@ import {
   LoginInput,
   ChangePasswordInput,
 } from '../../types';
+import {
+  createAccessToken,
+  createRefreshToken,
+  sendRefreshToken,
+} from '../../../utils/tokens';
+import { authVerification } from '../../../utils/authVerification';
 
 @Resolver(User)
 export class UserResolver {
   @Mutation(() => UserResponse)
   async register(
     @Arg('input') input: RegisterInput,
-    @Ctx() { req }: Context
+    @Ctx() { req, res }: Context
   ): Promise<UserResponse> {
     const { username, password, email } = input;
     const errors: FieldError[] = [];
+    const userId = authVerification(req);
+    if (!userId) errors.push({ field: 'auth', message: 'Must be signed in!' });
+
     // Field validations go here
     if (username.length < 2) {
       errors.push({
@@ -69,6 +79,7 @@ export class UserResolver {
 
     if (errors.length > 0)
       return {
+        accessToken: '',
         errors,
       };
 
@@ -81,12 +92,15 @@ export class UserResolver {
         password: await hash(input.password),
         email: input.email,
       });
-      req.session.userId = user.id; // create user session
+
+      sendRefreshToken(res, createRefreshToken(user));
+      return { user, accessToken: createAccessToken(user) };
     } catch (e) {
       console.log(e);
       if (e.code === 11000)
         if (e.keyValue['username'])
           return {
+            accessToken: '',
             errors: [
               {
                 field: 'username',
@@ -96,6 +110,7 @@ export class UserResolver {
           };
         else
           return {
+            accessToken: '',
             errors: [
               {
                 field: 'email',
@@ -103,15 +118,17 @@ export class UserResolver {
               },
             ],
           };
+      return {
+        errors,
+        accessToken: '',
+      };
     }
-
-    return { user };
   }
 
   @Mutation(() => UserResponse)
   async login(
     @Arg('input') input: LoginInput,
-    @Ctx() { req }: Context
+    @Ctx() { req, res }: Context
   ): Promise<UserResponse> {
     const { usernameOrEmail, password } = input;
     // Field validations go here
@@ -131,6 +148,7 @@ export class UserResolver {
 
     if (errors.length > 0)
       return {
+        accessToken: '',
         errors,
       };
 
@@ -142,6 +160,7 @@ export class UserResolver {
     if (!user) {
       if (!usernameOrEmail.includes('@'))
         return {
+          accessToken: '',
           errors: [
             {
               field: 'usernameOrEmail',
@@ -151,6 +170,7 @@ export class UserResolver {
         };
       else
         return {
+          accessToken: '',
           errors: [
             {
               field: 'usernameOrEmail',
@@ -164,6 +184,7 @@ export class UserResolver {
 
     if (!valid)
       return {
+        accessToken: '',
         errors: [
           {
             field: 'password',
@@ -172,33 +193,23 @@ export class UserResolver {
         ],
       };
 
-    req.session.userId = user.id; // create user session
+    sendRefreshToken(res, createRefreshToken(user));
 
     return {
+      accessToken: createAccessToken(user),
       user,
     };
   }
 
   @Mutation(() => Boolean)
-  logout(@Ctx() { req, res: response }: Context): Promise<boolean> {
-    return new Promise((res) =>
-      req.session.destroy((e) => {
-        response.clearCookie(COOKIE_NAME);
-
-        if (e) {
-          console.log(e);
-          res(false);
-          return;
-        } else {
-          res(true);
-        }
-      })
-    );
+  logout(@Ctx() { req, res: response }: Context): boolean {
+    response.clearCookie(COOKIE_NAME);
+    return true;
   }
 
   @Query(() => User, { nullable: true })
   async me(@Ctx() { req }: Context): Promise<DocumentType<User> | null> {
-    const { userId } = req.session;
+    const userId = authVerification(req);
 
     if (!userId) return null;
 
@@ -218,12 +229,16 @@ export class UserResolver {
 
     const resetPasswordToken = generateResetPasswordToken();
 
-    await redis.set(
-      FORGET_PASSWORD_PREFIX + resetPasswordToken,
+    const updatedUser = await UserModel.findByIdAndUpdate(
       user.id,
-      'ex',
-      1000 * 60 * 60 * 24 * 3
+      {
+        $set: { resetPasswordToken },
+      },
+      { new: true }
     );
+
+    if (updatedUser?.resetPasswordToken !== resetPasswordToken)
+      throw new Error('could not update user for reset password');
 
     const html = `<a href="http://localhost:3000/change-password/${resetPasswordToken}">reset password</a>`;
     sendEmail(email, html, 'Change Password');
@@ -234,11 +249,12 @@ export class UserResolver {
   @Mutation(() => UserResponse)
   async changePassword(
     @Arg('input') input: ChangePasswordInput,
-    @Ctx() { redis, req }: Context
+    @Ctx() { redis, req, res }: Context
   ): Promise<UserResponse> {
     const { newPassword, token } = input;
     if (newPassword.length < 6)
       return {
+        accessToken: '',
         errors: [
           {
             field: 'newPassword',
@@ -247,10 +263,11 @@ export class UserResolver {
         ],
       };
 
-    const userId = await redis.get(FORGET_PASSWORD_PREFIX + token);
+    const userId = (await UserModel.findOne({ resetPasswordToken: token }))?.id;
 
     if (!userId)
       return {
+        accessToken: '',
         errors: [{ field: 'token', message: 'Token invalid' }],
       };
 
@@ -264,11 +281,12 @@ export class UserResolver {
 
     if (!user)
       return {
+        accessToken: '',
         errors: [{ field: 'token', message: 'Token Expired' }],
       };
-    redis.del(FORGET_PASSWORD_PREFIX + token);
-    req.session.userId = userId;
-    return { user };
+
+    sendRefreshToken(res, createRefreshToken(user));
+    return { user, accessToken: createAccessToken(user) };
   }
 
   @FieldResolver()
@@ -283,7 +301,10 @@ export class UserResolver {
     @Root() user: DocumentType<User>,
     @Ctx() { req }: Context
   ): Promise<string | null> {
-    if (req.session.userId === user.id) return user.email;
+    const userId = authVerification(req);
+    if (!userId) return null;
+
+    if (userId === user.id) return user.email;
     return null;
   }
 }

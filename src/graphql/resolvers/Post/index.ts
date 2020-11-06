@@ -35,6 +35,7 @@ import {
   PostResponse,
   PaginatedComments,
 } from '../../types';
+import { authVerification } from '../../../utils/authVerification';
 
 @Resolver((of) => Post)
 export class PostResolver {
@@ -99,7 +100,8 @@ export class PostResolver {
     @Root() root: DocumentType<Post>,
     @Ctx() { req, voteLoader }: Context
   ): Promise<Number | null> {
-    const { userId } = req.session;
+    const userId = authVerification(req);
+    if (!userId) return null;
 
     try {
       const vote = await voteLoader.load({ postId: root.id, userId });
@@ -133,6 +135,9 @@ export class PostResolver {
     const { text, title } = input;
     // Field validations go here
     const errors: FieldError[] = [];
+    const userId = authVerification(req);
+    if (!userId) errors.push({ field: 'auth', message: 'Must be signed in!' });
+
     if (title.length < 2) {
       errors.push({
         field: 'title',
@@ -154,9 +159,9 @@ export class PostResolver {
     const post = await PostModel.create({
       title,
       text,
-      creatorId: req.session.userId,
+      creatorId: userId!,
     });
-    await UserModel.findByIdAndUpdate(req.session.userId, {
+    await UserModel.findByIdAndUpdate(userId!, {
       $push: { posts: post.id },
     });
     return { post };
@@ -172,6 +177,9 @@ export class PostResolver {
   ): Promise<PostResponse> {
     // Field validations go here
     const errors: FieldError[] = [];
+    const userId = authVerification(req);
+    if (!userId) errors.push({ field: 'auth', message: 'Must be signed in!' });
+
     if (title.length < 2) {
       errors.push({
         field: 'title',
@@ -187,7 +195,7 @@ export class PostResolver {
 
     const post = await PostModel.findOne({
       _id: id,
-      creatorId: req.session.userId,
+      creatorId: userId!,
     });
     if (!post)
       throw new Error("Post could not be found or you don't own this post! ");
@@ -215,9 +223,10 @@ export class PostResolver {
   ): Promise<boolean> {
     const post = await PostModel.findById(id);
     if (!post) return false;
+    const userId = authVerification(req);
+    if (!userId) return false;
 
-    if (post.creatorId !== req.session.userId)
-      throw new Error('not authorized');
+    if (post.creatorId !== userId) throw new Error('not authorized');
     const arr = post.commentIds?.map((item: any) => {
       return item[0];
     });
@@ -231,7 +240,7 @@ export class PostResolver {
     //delete post
     const deleted = await PostModel.findOneAndDelete({
       _id: id,
-      creatorId: req.session.userId,
+      creatorId: userId,
     });
 
     if (!deleted) return false;
@@ -261,7 +270,9 @@ export class PostResolver {
     @Arg('value', () => Int) value: number,
     @Ctx() { req }: Context
   ): Promise<boolean> {
-    const { userId } = req.session;
+    const userId = authVerification(req);
+    if (!userId) return false;
+
     const session = await mongoose.startSession();
     session.startTransaction();
     const isUpvote = value !== -1;

@@ -4,33 +4,41 @@ import { Post } from '../Post';
 
 @ObjectType()
 export class User {
-    @Field(() => ID)
-    id: string;
+  @Field(() => ID)
+  id: string;
 
-    @Field()
-    @prop({ unique: true })
-    username!: string;
+  @Field()
+  @prop({ unique: true })
+  username!: string;
 
-    @Field({ nullable: true })
-    @prop({ unique: true })
-    email!: string;
+  @Field({ nullable: true })
+  @prop({ unique: true })
+  email!: string;
 
-    @prop()
-    password!: string;
+  @prop()
+  password!: string;
 
-    @Field(() => Float)
-    @prop()
-    createdAt?: Date;
+  @Field(() => Float)
+  @prop()
+  createdAt?: Date;
 
-    @Field(() => [Post])
-    @prop({ default: [] })
-    posts?: Ref<Post>[];
+  @Field(() => [Post])
+  @prop({ default: [] })
+  posts?: Ref<Post>[];
 
-    @Field(() => Float)
-    @prop()
-    updatedAt?: Date;
+  @Field(() => Float)
+  @prop()
+  updatedAt?: Date;
+
+  @Field(() => String, { nullable: true })
+  @prop({ default: null })
+  public resetPasswordToken?: string;
+
+  @Field()
+  @prop({ default: 0 })
+  public tokenVersion?: number;
 }
 
 export const UserModel = getModelForClass(User, {
-    schemaOptions: { timestamps: true },
+  schemaOptions: { timestamps: true },
 });

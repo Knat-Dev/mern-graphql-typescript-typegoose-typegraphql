@@ -1,10 +1,12 @@
 import { DocumentType, mongoose } from '@typegoose/typegoose';
+import { MongooseFilterQuery } from 'mongoose';
 import {
   Arg,
   Ctx,
   FieldResolver,
   Int,
   Mutation,
+  Query,
   Resolver,
   Root,
   UseMiddleware,
@@ -12,14 +14,17 @@ import {
 import {
   Comment,
   CommentModel,
+  Post,
   PostModel,
   User,
   UserModel,
   VoteModel,
 } from '../../../models';
 import { Context } from '../../../types';
+import { authVerification } from '../../../utils/authVerification';
 import { isAuth } from '../../../utils/isAuth';
-import { CommentResponse, FieldError } from '../../types';
+import { CommentResponse, FieldError, PaginatedComments } from '../../types';
+import { PaginationInput } from '../Post/PaginationInput';
 
 @Resolver((of) => Comment)
 export class CommentResolver {
@@ -31,6 +36,13 @@ export class CommentResolver {
     @Ctx() { req }: Context
   ): Promise<CommentResponse> {
     const errors: FieldError[] = [];
+
+    const userId = authVerification(req);
+    if (!userId)
+      errors.push({
+        field: 'auth',
+        message: 'Must be signed in!',
+      });
 
     if (text.length < 2)
       errors.push({
@@ -51,7 +63,7 @@ export class CommentResolver {
 
     const comment = await CommentModel.create({
       text,
-      creatorId: req.session.userId,
+      creatorId: userId!,
       postId,
     });
 
@@ -62,6 +74,33 @@ export class CommentResolver {
     return {
       comment,
     };
+  }
+
+  @Query(() => PaginatedComments)
+  async comments(
+    @Arg('postId') postId: string,
+    @Arg('input') input: PaginationInput
+  ): Promise<PaginatedComments> {
+    const { limit, cursor } = input;
+    let realLimit = Math.min(50, limit);
+    realLimit = Math.max(1, realLimit);
+    realLimit++;
+    const query: MongooseFilterQuery<Pick<
+      DocumentType<Comment>,
+      'createdAt'
+    >> = cursor ? { createdAt: { $lt: new Date(cursor) } } : {};
+    const comments = await CommentModel.find({ postId, ...query })
+      .sort({ createdAt: -1 })
+      .limit(realLimit);
+
+    const count = comments.length;
+
+    return {
+      comments: comments.splice(0, realLimit - 1),
+      hasMore: count === realLimit,
+    };
+
+    //////
   }
 
   @FieldResolver()
@@ -77,7 +116,8 @@ export class CommentResolver {
     @Root() root: DocumentType<Comment>,
     @Ctx() { req, voteLoader }: Context
   ): Promise<Number | null> {
-    const { userId } = req.session;
+    const userId = authVerification(req);
+    if (!userId) return null;
 
     try {
       // const vote = await voteLoader.load({ postId: root.id, userId });
@@ -96,7 +136,8 @@ export class CommentResolver {
     @Arg('value', () => Int) value: number,
     @Ctx() { req }: Context
   ): Promise<boolean> {
-    const { userId } = req.session;
+    const userId = authVerification(req);
+    if (!userId) return false;
     const session = await mongoose.startSession();
     session.startTransaction();
     const isUpvote = value !== -1;

@@ -21,6 +21,9 @@ export class RegisterInput {
 
 @ObjectType()
 export class UserResponse {
+  @Field(() => String, { nullable: true })
+  accessToken: string;
+
   @Field(() => [FieldError], { nullable: true })
   errors?: FieldError[];
 
