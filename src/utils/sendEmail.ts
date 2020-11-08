@@ -1,34 +1,44 @@
 'use strict';
 import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
+import key from '../mailing-service-294919-e6e6e3bc1b54.json';
 
 // async..await is not allowed in global scope, must use a wrapper
 export async function sendEmail(to: string, html: string, subject: string) {
-  // Generate test SMTP service account from ethereal.email
-  // Only needed if you don't have a real mail account for testing
-
-  // let testAccount = await nodemailer.createTestAccount();
-  // console.log(testAccount);
-
   // create reusable transporter object using the default SMTP transport
+
   let transporter = nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 587,
-    secure: false, // true for 465, false for other ports
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
-      user: 'xsuapom4f7ddfw44@ethereal.email', // generated ethereal user
-      pass: '1T9PFTm6yRYszDPG3E', // generated ethereal password
+      type: 'OAuth2',
+      user: 'admin@knat.dev',
+      serviceClient: key.client_id,
+      privateKey: key.private_key,
     },
   });
 
-  // send mail with defined transport object
-  let info = await transporter.sendMail({
-    from: '"Fred Foo 👻" <foo@example.com>', // sender address
-    to, // list of receivers
-    subject, // Subject line
-    html, // html body
-  });
+  try {
+    await transporter.verify();
+    transporter.on('token', (token) => {
+      console.log('A new access token was generated');
+      console.log('User: %s', token.user);
+      console.log('Access Token: %s', token.accessToken);
+      console.log('Expires: %s', new Date(token.expires));
+    });
+    // send mail with defined transport object
+    let info = await transporter.sendMail({
+      from: '"Knat Dev - Reddit Clone" <admin@knat.dev>', // sender address
+      to, // list of receivers
+      subject, // Subject line
+      html, // html body
+    });
 
-  console.log('Message sent: %s', info.messageId);
+    console.log('Message sent: %s', info.messageId);
 
-  console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+  } catch (e) {
+    console.log(e.message);
+  }
 }

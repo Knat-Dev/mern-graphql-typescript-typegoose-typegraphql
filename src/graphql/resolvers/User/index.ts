@@ -17,7 +17,11 @@ import { verify as verifyJwt } from 'jsonwebtoken';
 import { hash, verify } from 'argon2';
 import { Context } from '../../../types';
 import { Response } from 'express';
-import { COOKIE_NAME, FORGET_PASSWORD_PREFIX } from '../../../constants';
+import {
+  COOKIE_NAME,
+  FORGET_PASSWORD_PREFIX,
+  __prod__,
+} from '../../../constants';
 import { sendEmail } from '../../../utils/sendEmail';
 import crypto from 'crypto';
 import { generateResetPasswordToken } from '../../../utils/generateResetPasswordToken';
@@ -44,8 +48,8 @@ export class UserResolver {
   ): Promise<UserResponse> {
     const { username, password, email } = input;
     const errors: FieldError[] = [];
-    const userId = authVerification(req);
-    if (!userId) errors.push({ field: 'auth', message: 'Must be signed in!' });
+    // const userId = authVerification(req);
+    // if (!userId) errors.push({ field: 'auth', message: 'Must be signed in!' });
 
     // Field validations go here
     if (username.length < 2) {
@@ -203,7 +207,9 @@ export class UserResolver {
 
   @Mutation(() => Boolean)
   logout(@Ctx() { req, res: response }: Context): boolean {
-    response.clearCookie(COOKIE_NAME);
+    response.clearCookie(COOKIE_NAME, {
+      domain: __prod__ ? '.knat.dev' : 'localhost',
+    });
     return true;
   }
 
@@ -240,7 +246,11 @@ export class UserResolver {
     if (updatedUser?.resetPasswordToken !== resetPasswordToken)
       throw new Error('could not update user for reset password');
 
-    const html = `<a href="http://localhost:3000/change-password/${resetPasswordToken}">reset password</a>`;
+    const serverAddress = __prod__
+      ? 'https://reddit.knat.dev'
+      : 'http://localhost:3000';
+
+    const html = `<a href="${serverAddress}/change-password/${resetPasswordToken}">reset password</a>`;
     sendEmail(email, html, 'Change Password');
 
     return true;
