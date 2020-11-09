@@ -14,6 +14,7 @@ For the fullstack live demo click [here](https://reddit.knat.dev)
 - Apollo Server
 - Apollo Express (exposes a graphql route)
 - GraphQL
+- TypeGraphQL - GraphQL code first approach
 - Json Web Tokens for authentication system
 
 ## Dev-ops
